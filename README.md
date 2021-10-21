@@ -7,8 +7,8 @@
 ### Usage:
 
 * After installing python dependencies from `requirements.txt`.
-* `Duration-HyTE.py` contains TensorFlow (1.x) based implementation of Duration-HyTE (proposed method). 
-* To start training:
+* TensorFlow (1.x) . 
+* To 
   ```shell
   python time_proj.py -data_type yago -margin 10 -model MODEL_NAME -test_freq 25 -<other_optins> ...
   ```
