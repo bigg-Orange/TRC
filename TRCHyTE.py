@@ -2,17 +2,14 @@
 from models import *
 from helper import *
 from random import *
-from pprint import pprint
-import pandas as pd
-# import networkx as nx
-import scipy.sparse as sp
 import matplotlib.pyplot as plt, uuid, sys, os, time, argparse
 import pickle, pdb, operator, random, sys
 import tensorflow as tf
 from collections import defaultdict as ddict
 from scipy.stats import norm
-# from pymongo import MongoClient
 from tensorflow.contrib.layers import xavier_initializer as xavier
+from tensorflow.python.ops import variable_scope as vs
+from tensorflow.contrib.rnn.python.ops import core_rnn_cell
 
 YEARMIN = -50
 YEARMAX = 3000
@@ -184,8 +181,8 @@ class TRCHyTE(Model):
         r_sd = []
         with open(self.p.SD, 'r', ) as f:
             for line in f.readlines():
-                line = line.strip('\n')  # 去掉换行符\n
-                b = line.split('\t')  # 将每一行以空格为分隔符转换成列表
+                line = line.strip('\n')
+                b = line.split('\t')
                 r_sd.append(b)
         r_sd = dict(r_sd)
         triple_set = []
@@ -340,6 +337,22 @@ class TRCHyTE(Model):
         data = data - prod
         return data
 
+    def multi_head(self, queries, keys, num_heads=2, scope='multihead', reuse=tf.AUTO_REUSE):
+        with vs.variable_scope(scope, reuse=reuse):
+            self.num_units = 106
+            Q = core_rnn_cell._linear(tf.reshape(queries, [-1, self.num_units]),self.num_units, True)
+            Q = tf.reshape(Q, tf.shape(queries))
+            K = core_rnn_cell._linear(tf.reshape(keys,[-1, self.num_units]),self.num_units, True)
+            K = tf.reshape(K, tf.shape(keys))
+            V = core_rnn_cell._linear(tf.reshape(keys,[-1, self.num_units]),self.num_units, True)
+            V = tf.reshape(V, tf.shape(keys))
+            Q_ = tf.stack(tf.split(Q, num_heads, 2))
+            K_ = tf.stack(tf.split(K, num_heads, 2))
+            # Compute weight
+            weights = tf.matmul(Q_, tf.transpose(K_, [0,1,3,2])) \
+                      / ((self.num_units/num_heads) ** 0.5)
+        return  weights
+
     def add_model(self):
         def call_train():
             return tf.multiply(q_1, pos)
@@ -440,6 +453,7 @@ class TRCHyTE(Model):
             attention_logits = []
             for i in range(hier):
                 current_relation = tf.nn.embedding_lookup(relation_matrixs[i], label_layer[:, 0])
+                current_relation = self.multi_head(current_relation, current_relation)
                 attention_logits.append(tf.reduce_sum(current_relation, 1))
 
             attention_logits_stack = tf.stack(attention_logits)
